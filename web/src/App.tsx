@@ -31,6 +31,8 @@ import {
   Menu,
   MessageSquare,
   Package,
+  PanelLeftClose,
+  PanelLeftOpen,
   Puzzle,
   RotateCw,
   Settings,
@@ -306,6 +308,8 @@ function buildRoutes(
   return routes;
 }
 
+const SIDEBAR_COLLAPSED_KEY = "hermes-sidebar-collapsed";
+
 export default function App() {
   const { t } = useI18n();
   const { pathname } = useLocation();
@@ -313,6 +317,23 @@ export default function App() {
   const { theme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
   const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === "true";
+    } catch {
+      return false;
+    }
+  });
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+      } catch {}
+      return next;
+    });
+  }, []);
   const isDocsRoute = pathname === "/docs" || pathname === "/docs/";
   const normalizedPath = pathname.replace(/\/$/, "") || "/";
   const isChatRoute = normalizedPath === "/chat";
@@ -483,9 +504,10 @@ export default function App() {
               "fixed top-0 left-0 z-50 flex h-dvh max-h-dvh w-64 min-h-0 flex-col",
               "border-r border-current/20",
               "bg-background-base/95 backdrop-blur-sm",
-              "transition-transform duration-200 ease-out",
+              "transition-[transform,width] duration-200 ease-out",
               mobileOpen ? "translate-x-0" : "-translate-x-full",
               "lg:sticky lg:top-0 lg:translate-x-0 lg:shrink-0",
+              collapsed && "lg:w-14",
             )}
             style={{
               background: "var(--component-sidebar-background)",
@@ -495,11 +517,19 @@ export default function App() {
           >
             <div
               className={cn(
-                "flex h-14 shrink-0 items-center justify-between gap-2 px-4",
+                "flex h-14 shrink-0 items-center gap-2 px-4",
                 "border-b border-current/20",
+                collapsed
+                  ? "lg:justify-center lg:px-0"
+                  : "justify-between",
               )}
             >
-              <div className="flex items-center gap-2">
+              <div
+                className={cn(
+                  "flex items-center gap-2",
+                  collapsed && "lg:hidden",
+                )}
+              >
                 <PluginSlot name="header-left" />
 
                 <Typography
@@ -521,6 +551,22 @@ export default function App() {
               >
                 <X />
               </Button>
+
+              <Button
+                ghost
+                size="icon"
+                onClick={toggleCollapsed}
+                aria-label={
+                  collapsed ? t.common.expand : t.common.collapse
+                }
+                className="hidden lg:flex text-text-secondary hover:text-midground"
+              >
+                {collapsed ? (
+                  <PanelLeftOpen className="h-4 w-4" />
+                ) : (
+                  <PanelLeftClose className="h-4 w-4" />
+                )}
+              </Button>
             </div>
 
             <nav
@@ -531,6 +577,7 @@ export default function App() {
                 {sidebarNav.coreItems.map((item) => (
                   <SidebarNavLink
                     closeMobile={closeMobile}
+                    collapsed={collapsed}
                     item={item}
                     key={item.path}
                     t={t}
@@ -548,6 +595,7 @@ export default function App() {
                     className={cn(
                       "px-5 pt-2.5 pb-1",
                       "font-mondwest text-display text-xs tracking-[0.12em] text-text-tertiary",
+                      collapsed && "lg:hidden",
                     )}
                     id="hermes-sidebar-plugin-nav-heading"
                   >
@@ -558,6 +606,7 @@ export default function App() {
                     {sidebarNav.pluginItems.map((item) => (
                       <SidebarNavLink
                         closeMobile={closeMobile}
+                        collapsed={collapsed}
                         item={item}
                         key={item.path}
                         t={t}
@@ -568,24 +617,31 @@ export default function App() {
               )}
             </nav>
 
-            <SidebarSystemActions onNavigate={closeMobile} />
-
             <div
               className={cn(
-                "flex shrink-0 items-center justify-between gap-2",
-                "px-3 py-2",
-                "border-t border-current/20",
+                "flex shrink-0 flex-col",
+                collapsed && "lg:hidden",
               )}
             >
-              <div className="flex min-w-0 items-center gap-2">
-                <PluginSlot name="header-right" />
-                <ThemeSwitcher dropUp />
-                <LanguageSwitcher dropUp />
-              </div>
-            </div>
+              <SidebarSystemActions onNavigate={closeMobile} />
 
-            <AuthWidget />
-            <SidebarFooter />
+              <div
+                className={cn(
+                  "flex shrink-0 items-center justify-between gap-2",
+                  "px-3 py-2",
+                  "border-t border-current/20",
+                )}
+              >
+                <div className="flex min-w-0 items-center gap-2">
+                  <PluginSlot name="header-right" />
+                  <ThemeSwitcher dropUp />
+                  <LanguageSwitcher dropUp />
+                </div>
+              </div>
+
+              <AuthWidget />
+              <SidebarFooter />
+            </div>
           </aside>
 
           <PageHeaderProvider pluginTabs={pluginTabMeta}>
@@ -660,7 +716,12 @@ export default function App() {
   );
 }
 
-function SidebarNavLink({ closeMobile, item, t }: SidebarNavLinkProps) {
+function SidebarNavLink({
+  closeMobile,
+  collapsed,
+  item,
+  t,
+}: SidebarNavLinkProps) {
   const { path, label, labelKey, icon: Icon } = item;
 
   const navLabel = labelKey
@@ -673,6 +734,7 @@ function SidebarNavLink({ closeMobile, item, t }: SidebarNavLinkProps) {
         to={path}
         end={path === "/sessions"}
         onClick={closeMobile}
+        title={collapsed ? navLabel : undefined}
         className={({ isActive }) =>
           cn(
             "group relative flex items-center gap-3",
@@ -683,6 +745,7 @@ function SidebarNavLink({ closeMobile, item, t }: SidebarNavLinkProps) {
             isActive
               ? "text-midground"
               : "text-text-secondary hover:text-midground",
+            collapsed && "lg:justify-center lg:gap-0 lg:px-0",
           )
         }
         style={{
@@ -692,7 +755,12 @@ function SidebarNavLink({ closeMobile, item, t }: SidebarNavLinkProps) {
         {({ isActive }) => (
           <>
             <Icon className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{navLabel}</span>
+
+            <span
+              className={cn("truncate", collapsed && "lg:hidden")}
+            >
+              {navLabel}
+            </span>
 
             <span
               aria-hidden
@@ -833,6 +901,7 @@ interface NavItem {
 
 interface SidebarNavLinkProps {
   closeMobile: () => void;
+  collapsed: boolean;
   item: NavItem;
   t: Translations;
 }

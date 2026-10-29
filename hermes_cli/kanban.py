@@ -360,6 +360,13 @@ def _cmd_create(args: argparse.Namespace) -> int:
     if max_retries is not None and max_retries < 1:
         return _err(f"kanban: --max-retries must be >= 1 (got {max_retries}); "
                     "use 1 to trip on the first failure.", 2)
+    from hermes_cli.kanban_preflight_io import preflight_create, refusal_message
+    skills = getattr(args, "skills", None) or None
+    check = preflight_create(args.assignee, skills)
+    if check is not None:
+        if not check.spawnable:
+            return _err(f"kanban: {refusal_message(check)}", 2)
+        skills = list(check.skills) or None  # normalized names
     with kbc.connect_closing() as conn:
         task_id = kb.create_task(
             conn, title=args.title, body=body, assignee=args.assignee,
@@ -368,7 +375,7 @@ def _cmd_create(args: argparse.Namespace) -> int:
             project_id=getattr(args, "project", None), tenant=args.tenant, priority=args.priority,
             parents=tuple(args.parent or ()), triage=bool(getattr(args, "triage", False)),
             idempotency_key=getattr(args, "idempotency_key", None),
-            max_runtime_seconds=max_runtime, skills=getattr(args, "skills", None) or None,
+            max_runtime_seconds=max_runtime, skills=skills,
             max_retries=max_retries, model_override=getattr(args, "model_override", None),
             provider_override=getattr(args, "provider_override", None),
             goal_mode=bool(getattr(args, "goal_mode", False)),

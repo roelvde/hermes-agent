@@ -1113,6 +1113,11 @@ def _handle_create(args: dict, **kw) -> str:
     model_override, provider_override = args.get("model"), args.get("provider")
     _check(model_override or not provider_override, "'provider' requires 'model' to be set as well")
     parents = _coerce_str_list(args.get("parents") or [], "parents", "task ids")
+    from hermes_cli.kanban_preflight_io import preflight_create, refusal_message
+    check = preflight_create(str(assignee), skills)
+    if check is not None:
+        _check(check.spawnable, refusal_message(check))
+        skills = list(check.skills)  # normalized names (a wrong category prefix is repaired)
     with _board(args.get("board")) as (kb, conn):
         from gateway.session_context import get_session_env
         from tools.async_delegation import _current_origin_session_id
